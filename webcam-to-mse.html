@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="description" content="GUM -> WebCodecs -> MSE demo">
+    <meta name="keywords" content="h264 player, mp4 player, mse, mp4 muxing, jmuxer, webcodecs">
+    <title>WebCodecs + MSE playback demo using jMuxer</title>
+</head>
+<body>
+
+<div id="container" style="width: 600px; margin: 0 auto;">
+    <button id="start-stop-btn">Start</button>
+    <video width="100%" controls autoplay id="player"></video>
+</div>
+<style type="text/css">
+#start-stop-btn {
+    background: #3498db;
+    color: #fff;
+    padding: 7px;
+    width: 100%;
+    border: 1px solid #0880d0;
+    font-size: 15px;
+    margin-bottom: 10px;
+    cursor: pointer;
+}
+#start-stop-btn:hover {
+   background: #05568c;
+}
+</style>
+<script>
+
+let jmuxer = null
+let prevTs = 0
+let state = 'stopped'
+
+function handleChunk(chunk, metadata) {
+    if (!jmuxer) {
+        jmuxer = new JMuxer({
+            node: 'player',
+            mode: 'video',
+            flushingTime: 0,
+            clearBuffer: false,
+            debug: true
+        })
+    }
+
+    const encodedFrame = new ArrayBuffer(chunk.byteLength)
+    chunk.copyTo(encodedFrame)
+
+    // these are in milliseconds
+    const newTs = chunk.timestamp
+    let durationUs = newTs - prevTs
+    prevTs = newTs
+
+    if (durationUs < 5000)
+        durationUs = 5000
+
+    jmuxer.feed({
+        video: new Uint8Array(encodedFrame),
+        duration: durationUs * 0.000001
+    })
+}
+
+async function startStop() {
+    const btn = document.getElementById('start-stop-btn')
+    if (state === 'running') {
+        state = 'stopped'
+        return
+    }
+
+    let stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: true
+    })
+    let trackProcessor = new MediaStreamTrackProcessor(stream.getVideoTracks()[0])
+    let videoEncoder = new VideoEncoder({
+        output: handleChunk,
+        error: e => {console.log(e.message)}
+    })
+
+    const reader = trackProcessor.readable.getReader()
+
+    state = 'running'
+    btn.textContent = 'Stop'
+
+    while (state === 'running') {
+        const { done, value } = await reader.read()
+
+        if (done)
+            break
+
+        if (videoEncoder.state === 'unconfigured') {
+            console.log('Configuring video encoder', value)
+            videoEncoder.configure({
+                codec: 'avc1.640032',
+                width: value.codedWidth,
+                height: value.codedHeight,
+                avc: {format: 'annexb'}
+            })
+        }
+
+        videoEncoder.encode(value)
+        value.close()
+    }
+
+    if (jmuxer) {
+        jmuxer.destroy()
+        jmuxer = null
+    }
+    prevTs = 0
+    document.getElementById('player').src = ''
+    btn.textContent = 'Start'
+}
+
+window.onload = function() {
+    document.getElementById('start-stop-btn').addEventListener('click', startStop, false)
+}
+</script>
+<script type="text/javascript" src="jmuxer.min.js"></script>
+</body>
+</html>
