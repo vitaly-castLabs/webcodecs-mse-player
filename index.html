@@ -74,7 +74,9 @@ async function startStop() {
             output: handleChunk,
             error: e => {alert(e.message)}
         })
-    } catch (e) {
+    }
+    catch (e) {
+        stream?.getTracks().forEach(t => t.stop())
         alert(e.message)
         return
     }
@@ -125,6 +127,8 @@ async function startStop() {
     prevTs = 0
     video.src = ''
     startBtn.textContent = 'Start'
+
+    stream?.getTracks().forEach(t => t.stop())
 }
 
 window.onload = function() {
