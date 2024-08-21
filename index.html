@@ -1,42 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="description" content="GUM -> WebCodecs -> MSE demo">
     <meta name="keywords" content="h264 player, mp4 player, mse, mp4 muxing, jmuxer, webcodecs">
     <title>WebCodecs + MSE playback demo using jMuxer</title>
 </head>
-<body>
 
-<div id="container" style="width: 600px; margin: 0 auto;">
-    <button id="start-stop-btn">Start</button>
-    <video width="100%" controls autoplay id="player"></video>
+<body>
+<div style="height:75vh;width:95vw">
+    <video height="100%" width="100%" controls autoplay id="video"></video>
 </div>
-<style type="text/css">
-#start-stop-btn {
-    background: #3498db;
-    color: #fff;
-    padding: 7px;
-    width: 100%;
-    border: 1px solid #0880d0;
-    font-size: 15px;
-    margin-bottom: 10px;
-    cursor: pointer;
-}
-#start-stop-btn:hover {
-   background: #05568c;
-}
-</style>
+<br>
+<button id="start-stop-btn">Start</button>
+<br><br>
+<span id="buffered"></span>
 <script>
+
+const video = document.getElementById('video')
+const startBtn = document.getElementById('start-stop-btn')
+const buffered = document.getElementById('buffered')
 
 let jmuxer = null
 let prevTs = 0
 let state = 'stopped'
+let bufferedPoller = null
 
 function handleChunk(chunk, metadata) {
     if (!jmuxer) {
         jmuxer = new JMuxer({
-            node: 'player',
+            node: video,
             mode: 'video',
             flushingTime: 0,
             clearBuffer: false,
@@ -47,7 +41,7 @@ function handleChunk(chunk, metadata) {
     const encodedFrame = new ArrayBuffer(chunk.byteLength)
     chunk.copyTo(encodedFrame)
 
-    // these are in milliseconds
+    // these are in microseconds
     const newTs = chunk.timestamp
     let durationUs = newTs - prevTs
     prevTs = newTs
@@ -62,26 +56,43 @@ function handleChunk(chunk, metadata) {
 }
 
 async function startStop() {
-    const btn = document.getElementById('start-stop-btn')
     if (state === 'running') {
         state = 'stopped'
         return
     }
 
-    let stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: true
-    })
-    let trackProcessor = new MediaStreamTrackProcessor(stream.getVideoTracks()[0])
-    let videoEncoder = new VideoEncoder({
-        output: handleChunk,
-        error: e => {console.log(e.message)}
-    })
+    let stream = null
+    let trackProcessor = null
+    let videoEncoder = null
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: true
+        })
+        trackProcessor = new MediaStreamTrackProcessor(stream.getVideoTracks()[0])
+        videoEncoder = new VideoEncoder({
+            output: handleChunk,
+            error: e => {alert(e.message)}
+        })
+    } catch (e) {
+        alert(e.message)
+        return
+    }
+
+    if (!videoEncoder)
+        return
 
     const reader = trackProcessor.readable.getReader()
 
     state = 'running'
-    btn.textContent = 'Stop'
+    startBtn.textContent = 'Stop'
+    bufferedPoller = setInterval(() => {
+        let bufferedMs = 0
+        if (video.buffered.length > 0)
+            bufferedMs = ((video.buffered.end(0) - video.currentTime) * 1000) | 0
+
+            buffered.innerText = `Buffered: ${bufferedMs}ms`
+    }, 1000)
 
     while (state === 'running') {
         const { done, value } = await reader.read()
@@ -103,17 +114,21 @@ async function startStop() {
         value.close()
     }
 
+    if (bufferedPoller) {
+        clearInterval(bufferedPoller)
+        bufferedPoller = null
+    }
     if (jmuxer) {
         jmuxer.destroy()
         jmuxer = null
     }
     prevTs = 0
-    document.getElementById('player').src = ''
-    btn.textContent = 'Start'
+    video.src = ''
+    startBtn.textContent = 'Start'
 }
 
 window.onload = function() {
-    document.getElementById('start-stop-btn').addEventListener('click', startStop, false)
+    startBtn.addEventListener('click', startStop, false)
 }
 </script>
 <script type="text/javascript" src="jmuxer.min.js"></script>
