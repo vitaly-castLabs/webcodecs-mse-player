@@ -1,1 +1,1 @@
-# webcodecs-mse-player
+# WebCodecs + MSE playback test/demo
