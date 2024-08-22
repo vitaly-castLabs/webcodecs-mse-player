@@ -36,9 +36,12 @@ function handleChunk(chunk, metadata) {
             mode: 'video',
             flushingTime: 0,
             clearBuffer: false,
-            debug: true
+            debug: false        // very verbose in debug mode
         })
     }
+
+    if (chunk.type === 'key')
+        console.log(`${new Date().toISOString().slice(11, -1)} key frame, ${chunk.byteLength} bytes`)
 
     const encodedFrame = new ArrayBuffer(chunk.byteLength)
     chunk.copyTo(encodedFrame)
@@ -98,6 +101,8 @@ async function startStop() {
             buffered.innerText = `Buffered: ${bufferedMs}ms`
     }, 1000)
 
+    video.play().then(() => {}).catch(() => {})
+
     while (state === 'running') {
         const { done, value } = await reader.read()
 
@@ -110,6 +115,7 @@ async function startStop() {
                 codec: 'avc1.640032',
                 width: value.codedWidth,
                 height: value.codedHeight,
+                latencyMode: 'realtime',
                 avc: {format: 'annexb'}
             })
         }
@@ -169,6 +175,7 @@ window.onload = function() {
     }
 
     startBtn.addEventListener('click', startStop, false)
+    video.playoutDelayHint = video.jitterBufferDelayHint = video.jitterBufferTarget = 0
 }
 </script>
 <script type="text/javascript" src="jmuxer.min.js"></script>
