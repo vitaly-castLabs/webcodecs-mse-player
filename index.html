@@ -48,7 +48,7 @@ function handleChunk(chunk, metadata) {
 
     // these are in microseconds
     const newTs = chunk.timestamp
-    let durationUs = newTs - prevTs
+    let durationUs = prevTs === 0 ? 33333 : newTs - prevTs
     prevTs = newTs
 
     if (durationUs < 5000)
@@ -72,7 +72,7 @@ async function startStop() {
     try {
         stream = await navigator.mediaDevices.getUserMedia({
             audio: false,
-            video: true
+            video: {frameRate: {ideal: 30}}
         })
         trackProcessor = new MediaStreamTrackProcessor({track: stream.getVideoTracks()[0]})
         videoEncoder = new VideoEncoder({
@@ -121,7 +121,7 @@ async function startStop() {
             })
         }
 
-        videoEncoder.encode(value, {keyFrame: !(frameCount++ % 100)})
+        videoEncoder.encode(value, {keyFrame: !(frameCount++ % 300)})
         value.close()
     }
 
