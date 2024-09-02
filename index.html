@@ -103,6 +103,7 @@ async function startStop() {
 
     video.play().then(() => {}).catch(() => {})
 
+    prevTs = 0
     let frameCount = 0
     while (state === 'running') {
         const { done, value } = await reader.read()
@@ -122,6 +123,10 @@ async function startStop() {
         }
 
         videoEncoder.encode(value, {keyFrame: !(frameCount++ % 300)})
+        // in order to avoid frame reordering (B-frames) and PTS/DTS
+        // discrepancies, which happens with Firefox on Windows
+        await videoEncoder.flush()
+
         value.close()
     }
 
@@ -133,7 +138,6 @@ async function startStop() {
         jmuxer.destroy()
         jmuxer = null
     }
-    prevTs = 0
     video.src = ''
     startBtn.textContent = 'Start'
 
@@ -168,7 +172,7 @@ window.onload = function() {
 
                         t1 = performance.now()
                         ctx.drawImage(video, 0, 0)
-                        controller.enqueue(new VideoFrame(canvas, {timestamp: t1}))
+                        controller.enqueue(new VideoFrame(canvas, {timestamp: t1 * 1000}))
                     }
                 })
             }
