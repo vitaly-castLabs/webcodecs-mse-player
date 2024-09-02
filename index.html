@@ -103,6 +103,7 @@ async function startStop() {
 
     video.play().then(() => {}).catch(() => {})
 
+    let frameCount = 0
     while (state === 'running') {
         const { done, value } = await reader.read()
 
@@ -120,7 +121,7 @@ async function startStop() {
             })
         }
 
-        videoEncoder.encode(value)
+        videoEncoder.encode(value, {keyFrame: !(frameCount++ % 100)})
         value.close()
     }
 
