@@ -114,7 +114,10 @@ async function startStop() {
         if (videoEncoder.state === 'unconfigured') {
             console.log('Configuring video encoder', value)
             videoEncoder.configure({
-                codec: 'avc1.640032',
+                // it's safer to use Baseline profile (0x42) in order to completely
+                // eliminate the possibility of the video encoder inserting B-frames
+                // and screwing timestamps (happens with FF on Windows)
+                codec: 'avc1.420032',
                 width: value.codedWidth,
                 height: value.codedHeight,
                 latencyMode: 'realtime',
@@ -123,10 +126,6 @@ async function startStop() {
         }
 
         videoEncoder.encode(value, {keyFrame: !(frameCount++ % 300)})
-        // in order to avoid frame reordering (B-frames) and PTS/DTS
-        // discrepancies, which happens with Firefox on Windows
-        await videoEncoder.flush()
-
         value.close()
     }
 
